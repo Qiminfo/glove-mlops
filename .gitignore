@@ -1,0 +1,26 @@
+# IntelliJ
+.idea
+
+# Mac OS
+.DS_Store
+
+# ENV
+.env
+
+# VS Code
+.vscode
+.devcontainer
+__pycache__
+
+# Coverage
+.coverage
+
+# BentoML
+bentobox/
+
+# dev build outputs
+/build/
+/dist/
+
+# local tests resources
+/src/tests/resources/
