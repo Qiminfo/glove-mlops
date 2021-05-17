@@ -1,20 +1,20 @@
 ---
 - step:
     name: transform
-    image: gitlab.qiminfo.net:4567/parse-cv/qi-match/qimatch-service:valohai
+    image: <<registry/image:tag>>
     command:
       - cd src
       - python main.py clean_text {parameters}
     mounts:
       - source: /data
-        destination: /solodata
+        destination: /data
         readonly: false
 
     parameters:
       - name: data_file
         description: Path to the datafile to clean
         type: string
-        default: /solodata/langdetected_cvs_df.json
+        default: /data/langdetected_cvs_df.json
       - name: output_path
         description: Output path to save the cleaned df
         type: string
@@ -50,7 +50,7 @@
 
 - step:
     name: cooccurrence
-    image: gitlab.qiminfo.net:4567/parse-cv/qi-match/qimatch-service:valohai
+    image: <<registry/image:tag>>
     command:
       - cd src
       - python main.py build_cooccurrence {parameters}
@@ -59,7 +59,7 @@
         filename: cleansed_cvs_df.json
     mounts:
       - source: /data
-        destination: /solodata
+        destination: /data
         readonly: false
     parameters:
       - name: cleansed_cvs
@@ -88,20 +88,18 @@
 
 - step:
     name: train
-    image: gitlab.qiminfo.net:4567/parse-cv/qi-match/qimatch-service:valohai
+    image: <<registry/image:tag>>
     command:
       - cd src
       - python3 main.py train_glove {parameters}
     inputs:
       - name: cooccurrences
         filename: cooccurrence_matrix.npz
-        default: datum://01792351-73e6-2629-042f-360afcabf9b7
       - name: counter
         filename: counter.pkl
-        default: datum://01792351-77cf-338c-2656-c0550866168f
     mounts:
       - source: /data
-        destination: /solodata
+        destination: /data
         readonly: false
     inputs:
       - name: cooccurrence_matrix
@@ -143,7 +141,7 @@
       - name: output_path
         description: Output path to save the trained model
         type: string
-        default: /solodata/glove_embedder.pkl
+        default: /data/glove_embedder.pkl
 
 - pipeline:
     name: Training Pipeline
@@ -164,18 +162,17 @@
 
 - step:
     name: apply
-    image: gitlab.qiminfo.net:4567/parse-cv/qi-match/qimatch-service:valohai
+    image: <<registry/image:tag>>
     command:
       - cd src
       - python main.py apply {parameters}
     mounts:
       - source: /data
-        destination: /solodata
+        destination: /data
         readonly: false
     inputs:
       - name: glove_embedder
         filename: glove_embedder.pkl
-        default: s3://qimatch-dev-parsed/data/01F3Y/01F3YQPZTZ77QAMV5GE0YJHRDJ/upload/glove_embedder.pkl
 
     parameters:
       - name: glove_embedder
@@ -189,7 +186,7 @@
       - name: labeled_docs_path
         description: path of labeled dataset (json pandas DataFrame)
         type: string
-        default: /solodata/langdetected_cvs_labeled_df.json
+        default: /data/langdetected_cvs_labeled_df.json
       - name: language_colname
         type: string
         default: main_language
@@ -200,13 +197,13 @@
 
 - step:
     name: eval
-    image: gitlab.qiminfo.net:4567/parse-cv/qi-match/qimatch-service:valohai
+    image: <<registry/image:tag>>
     command:
       - cd src
       - python main.py evaluate {parameters}
     mounts:
       - source: /data
-        destination: /solodata
+        destination: /data
         readonly: false
     inputs:
       - name: embedded_cvs_labeled
@@ -220,11 +217,11 @@
       - name: output_path
         description: Output path to save eval artifacts
         type: string
-        default: /solodata
+        default: /data
       - name: labeled_docs_path
         description: input path to the dataframe for labeled data
         type: string
-        default: /solodata/langdetected_cvs_labeled_df.json
+        default: /data/langdetected_cvs_labeled_df.json
       - name: language_colname
         type: string
         default: main_language
