@@ -1,0 +1,282 @@
+---
+- step:
+    name: transform
+    image: gitlab.qiminfo.net:4567/parse-cv/qi-match/qimatch-service:valohai
+    command:
+      - cd src
+      - python main.py clean_text {parameters}
+    mounts:
+      - source: /data
+        destination: /solodata
+        readonly: false
+
+    parameters:
+      - name: data_file
+        description: Path to the datafile to clean
+        type: string
+        default: /solodata/langdetected_cvs_df.json
+      - name: output_path
+        description: Output path to save the cleaned df
+        type: string
+        default: /valohai/outputs/cleansed_cvs_df.json
+      - name: force
+        description: Force download of files even if it already exists?
+        type: flag
+      - name: replace_urls
+        type: flag
+        default: True
+      - name: replace_dates
+        type: flag
+        default: True
+      - name: replace_digits
+        type: flag
+        default: True
+      - name: replace_mails
+        type: flag
+        default: True
+      - name: normalize_text
+        pass-as: --normalize_text={v}
+        type: flag
+        default: True
+      - name: replace_placeholders
+        type: flag
+        default: True
+      - name: text_colname
+        type: string
+        default: text
+      - name: lang_colname
+        type: string
+        default: main_language
+
+- step:
+    name: cooccurrence
+    image: gitlab.qiminfo.net:4567/parse-cv/qi-match/qimatch-service:valohai
+    command:
+      - cd src
+      - python main.py build_cooccurrence {parameters}
+    inputs:
+      - name: cleansed_cvs
+        filename: cleansed_cvs_df.json
+    mounts:
+      - source: /data
+        destination: /solodata
+        readonly: false
+    parameters:
+      - name: cleansed_cvs
+        type: string
+        default: /valohai/inputs/cleansed_cvs/cleansed_cvs_df.json
+      - name: output_path
+        description: Output path to save the cooccurrence matrix
+        type: string
+        default: /valohai/outputs/cooccurrence_matrix.npz
+      - name: text_colname
+        type: string
+        default: text
+      - name: language_colname
+        type: string
+        default: main_language
+      - name: lang
+        type: string
+        default: fr
+        optional: True
+      - name: min_df
+        type: integer
+        default: 5
+      - name: context_size
+        type: integer
+        optional: True
+
+- step:
+    name: train
+    image: gitlab.qiminfo.net:4567/parse-cv/qi-match/qimatch-service:valohai
+    command:
+      - cd src
+      - python3 main.py train_glove {parameters}
+    inputs:
+      - name: cooccurrences
+        filename: cooccurrence_matrix.npz
+        default: datum://01792351-73e6-2629-042f-360afcabf9b7
+      - name: counter
+        filename: counter.pkl
+        default: datum://01792351-77cf-338c-2656-c0550866168f
+    mounts:
+      - source: /data
+        destination: /solodata
+        readonly: false
+    inputs:
+      - name: cooccurrence_matrix
+        filename: cooccurrence_matrix.npz
+
+    parameters:
+      - name: cooccurrence_matrix
+        type: string
+        default: /valohai/inputs/cooccurrence_matrix/cooccurrence_matrix.npz
+      - name: output_path
+        description: Output path to save the trained model
+        type: string
+        default: /valohai/outputs/glove_embedder.pkl
+      - name: text_colname
+        type: string
+        default: text
+      - name: language_colname
+        type: string
+        default: main_language
+      - name: lang
+        type: string
+        default: fr
+        optional: True
+      - name: min_df
+        type: integer
+        default: 5
+      - name: max_epochs
+        type: integer
+        default: 5
+      - name: nb_dims
+        type: integer
+        default: 100
+      - name: batch_size
+        type: integer
+        default: 32768
+      - name: clip_gradient
+        type: flag
+        default: true 
+      - name: output_path
+        description: Output path to save the trained model
+        type: string
+        default: /solodata/glove_embedder.pkl
+
+- pipeline:
+    name: Training Pipeline
+    nodes:
+      - name: transform-node
+        type: execution
+        step: transform
+      - name: cooccurrence-node
+        type: execution
+        step: cooccurrence
+      - name: train-node
+        type: execution
+        step: train
+
+    edges:
+      - [transform-node.parameter.output_path, cooccurrence-node.parameter.data_file]
+      - [cooccurrence-node.parameter.output_path, train-node.parameter.data_file]
+
+- step:
+    name: apply
+    image: gitlab.qiminfo.net:4567/parse-cv/qi-match/qimatch-service:valohai
+    command:
+      - cd src
+      - python main.py apply {parameters}
+    mounts:
+      - source: /data
+        destination: /solodata
+        readonly: false
+    inputs:
+      - name: glove_embedder
+        filename: glove_embedder.pkl
+        default: s3://qimatch-dev-parsed/data/01F3Y/01F3YQPZTZ77QAMV5GE0YJHRDJ/upload/glove_embedder.pkl
+
+    parameters:
+      - name: glove_embedder
+        description: input path of embedder to be applied on eval dataset
+        type: string
+        default: /valohai/inputs/glove_embedder/glove_embedder.pkl
+      - name: output_path
+        description: outputpath of embedded labeled dataset (json pandas DataFrame)
+        type: string
+        default: /valohai/outputs/embedded_cvs_labeled_df.json
+      - name: labeled_docs_path
+        description: path of labeled dataset (json pandas DataFrame)
+        type: string
+        default: /solodata/langdetected_cvs_labeled_df.json
+      - name: language_colname
+        type: string
+        default: main_language
+      - name: lang
+        type: string
+        default: fr
+        optional: True
+
+- step:
+    name: eval
+    image: gitlab.qiminfo.net:4567/parse-cv/qi-match/qimatch-service:valohai
+    command:
+      - cd src
+      - python main.py evaluate {parameters}
+    mounts:
+      - source: /data
+        destination: /solodata
+        readonly: false
+    inputs:
+      - name: embedded_cvs_labeled
+        filename: embedded_cvs_labeled_df.json
+
+    parameters:
+      - name: embedded_cvs_labeled
+        description: input path to the embeddings of labeled data
+        type: string
+        default: /valohai/inputs/embedded_cvs_labeled/embedded_cvs_labeled_df.json
+      - name: output_path
+        description: Output path to save eval artifacts
+        type: string
+        default: /solodata
+      - name: labeled_docs_path
+        description: input path to the dataframe for labeled data
+        type: string
+        default: /solodata/langdetected_cvs_labeled_df.json
+      - name: language_colname
+        type: string
+        default: main_language
+      - name: lang
+        type: string
+        default: fr
+        optional: True
+      - name: ranking_limit
+        description: limit for ranking performance evaluation
+        type: integer
+        optional: true
+      - name: random_samples_nb
+        description: number of samples to draw for performance evaluation
+        type: integer
+        default: 100
+        optional: true
+
+- pipeline:
+    name: Evaluation Pipeline
+    nodes:
+      - name: apply-node
+        type: execution
+        step: apply
+      - name: eval-node
+        type: execution
+        step: eval
+
+    edges:
+      - [ apply-node.output.embedded_cvs_labeled*, eval-node.input.embedded_cvs_labeled ]
+
+- pipeline:
+    name: Full Pipeline
+
+    nodes:
+      - name: transform-node
+        type: execution
+        step: transform
+      - name: cooccurrence-node
+        type: execution
+        step: cooccurrence
+      - name: train-node
+        type: execution
+        step: train
+      - name: apply-node
+        type: execution
+        step: apply
+      - name: eval-node
+        type: execution
+        step: eval
+
+    edges:
+      - [ transform-node.output.cleansed_cvs_df*, cooccurrence-node.input.cleansed_cvs ]
+      - [ cooccurrence-node.output.cooccurrence_matrix*, train-node.input.cooccurence_matrix ]
+      - [ train-node.output.glove_embedder*, apply-node.input.glove_embedder ]
+      - [ apply-node.output.embedded_cvs_labeled*, eval-node.input.embedded_cvs_labeled ]
