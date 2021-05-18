@@ -4,6 +4,4 @@ pandas==1.2.3
 scikit-learn==0.23.2
 torch==1.8.1
 scipy
-dask[complete]
-dask-ml
 boto3

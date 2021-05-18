@@ -24,3 +24,7 @@ bentobox/
 
 # local tests resources
 /src/tests/resources/
+
+# local resources
+/resources/
+!/resources/.trackme

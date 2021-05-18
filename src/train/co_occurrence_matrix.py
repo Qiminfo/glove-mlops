@@ -229,16 +229,18 @@ def build_cooccurrence(
     )
 
     cooc_matrix = cooc_matrix_tfx.fit_transform(df[text_colname])
+    cooc_matrix_path = output_path / "cooccurrence_matrix.npz"
 
     np.savez_compressed(
-        output_path,
+        cooc_matrix_path,
         data=cooc_matrix.data,
         indices=cooc_matrix.indices,
         indptr=cooc_matrix.indptr,
         shape=cooc_matrix.shape,
     )
 
-    with open(output_path.with_name("counter.pkl"), "wb") as ostream:
+    counter_path = output_path / "counter.pkl"
+    with open(counter_path, "wb") as ostream:
         pkl.dump(cooc_matrix_tfx.counter, ostream)
 
     if output_path.exists():

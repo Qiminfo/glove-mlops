@@ -453,21 +453,8 @@ def evaluation(
         dataframe[language_colname].str.contains(lang)
     ].copy()
 
-    profile_categories_columns = [
-        "Dev F",
-        "Dev B",
-        "DevOps / Solution Architect",
-        "BA",
-        "PM",
-        "SysAdmin/Support",
-        "Data Analyst / BI",
-        "Software Engineer / R&D",
-        "Data Engineer",
-        "Security & Identity",
-        "Data Scientist",
-        "QA/Test/Automation Engineer",
-        "DbAdmin",
-    ]
+    # adapted to demo data
+    profile_categories_columns = [c for c in labeled_examples_lang.columns if c not in ["text", "main_language"]]
 
     # compute what is relevant and what is not for each example
     cooc = get_cooc_matrix(labeled_examples_lang[profile_categories_columns])
