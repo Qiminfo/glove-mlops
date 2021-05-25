@@ -19,6 +19,7 @@ COPY requirements.txt .
 RUN python3.8 -m pip install -r requirements.txt
 
 FROM base AS nlp
+RUN apt-get install git docker -y
 COPY requirements-nlp.txt .
 RUN python3.8 -m pip install -r requirements-nlp.txt
 RUN python3.8 -c "import nltk; nltk.download('stopwords')"

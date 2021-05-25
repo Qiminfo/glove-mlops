@@ -19,7 +19,7 @@ logger = logging.getLogger("Evaluation")
 logger.setLevel(logging.INFO)
 
 
-def load_data(output_path: Union[Path, str] = "./resources") -> Union[Tuple, str]:
+def load_data(output_path: Union[Path, str] = "/resources") -> Union[Tuple, str]:
     """
     Loads 20Newsgroups as demo dataset and returns it formatted as needed for later use as pipeline input
     :return: pd.DataFrame

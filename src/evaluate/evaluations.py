@@ -86,7 +86,7 @@ def average_precision(
 ) -> pd.Series:
     """
     Compute mean average precision (MAP) given an recommended (infered) ranking of similair profiles
-    and its relevant profiles (labeled data)
+    and its relevant profiles (labeled resources)
     Args:
         ranked: most similar profiles ranking given a target cv
         relevants: actually similar profiles
@@ -276,7 +276,7 @@ def compute_feedback_precisions_per_quantiles(
         feedbacks_nb_colname: name of the column containing number of user feedback
 
     Returns:
-        tuple(pd.Series: precisions for each data point, pd.Series: precisions for each quantile,
+        tuple(pd.Series: precisions for each resources point, pd.Series: precisions for each quantile,
         pd.Series: chosen quantiles)
 
     """
@@ -291,7 +291,7 @@ def compute_feedback_precisions_per_quantiles(
     # make sure that no record has zero feedback
     assert (
         feedback_df[feedbacks_nb_colname].min() != 0
-    ), "One or more record with no feedback: check selected data."
+    ), "One or more record with no feedback: check selected resources."
 
     if k_limit != 0:
         quantiles_nb = (
@@ -324,7 +324,7 @@ def compute_feedback_precisions_per_quantiles(
 def parse_feedback_df(df: pd.DataFrame, json_colname: str = "text") -> pd.DataFrame:
     """
     Parsing function be applied on a df returned by the 'download_all_files' func in 's3_utils'
-    Content of each query's feedback (ie, the json data) should be found in the 'json_colname' column of the input df.
+    Content of each query's feedback (ie, the json resources) should be found in the 'json_colname' column of the input df.
     """
     df[json_colname] = df[json_colname].apply(json.loads)
     df["query_ts"] = df[json_colname].apply(lambda x: x.get("query_ts"))
@@ -352,13 +352,13 @@ def apply(
     labeled_docs_path: Union[str, Path],
     lang: str = "",
     language_colname: str = "main_language",
-    output_path: Union[str, Path] = "/solodata/eval/embedded_cvs_labeled_df.json",
+    output_path: Union[str, Path] = "/resources/eval/embedded_cvs_labeled_df.json",
 ):
     """
     Apply GloVe to the dataframe in input and save the average embeddings in output_path.
     :param glove_embedder: filepath of trained Embedder (Transformer-like) to be used on labeled dataset.
     :param output_path: filepath of labeled dataset embeddings
-    :param labeled_docs_path: filepath of labeled data set; expected to be a json exported pandas dataframe
+    :param labeled_docs_path: filepath of labeled resources set; expected to be a json exported pandas dataframe
     :param lang: Language to consider from the output.
     Defaults to empty string, which means no distinction.
     :param language_colname: str. Name of the column indicating document's main language.
@@ -413,7 +413,7 @@ def evaluation(
     language_colname: str = "main_language",
     ranking_limit: int = None,
     random_samples_nb: int = 100,
-    output_path: Union[str, Path] = "/solodata/eval",
+    output_path: Union[str, Path] = "/resources/eval",
 ):
     """Document retrieval performance evaluation.
     :param embedded_cvs_labeled: Input file path for the embedded dataset.
@@ -453,7 +453,7 @@ def evaluation(
         dataframe[language_colname].str.contains(lang)
     ].copy()
 
-    # adapted to demo data
+    # adapted to demo resources
     profile_categories_columns = [c for c in labeled_examples_lang.columns if c not in ["text", "main_language"]]
 
     # compute what is relevant and what is not for each example
@@ -481,7 +481,7 @@ def evaluation(
     )
 
     # get curves: m.a.p. for each kth recommendation
-    # aggregated over the set of queries/labeled data points
+    # aggregated over the set of queries/labeled resources points
     curves_df = map_precision_recall_curves(
         distance_matrix=distance_matrix, relevants=relevants, k=ranking_limit
     )

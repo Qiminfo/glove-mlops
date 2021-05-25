@@ -1,5 +1,5 @@
 """Data processing module.
-This module aims at preparing and shaping the data in order to make it suitable for the subsequent training step.
+This module aims at preparing and shaping the resources in order to make it suitable for the subsequent training step.
 """
 import sys
 import logging
@@ -183,7 +183,7 @@ class GloveEmbeddingTransformer(TransformerMixin, BaseEstimator):
 
     def _cython_fit(self, cooccurrences_m, y=None):
         """
-        Fit to data.
+        Fit to resources.
 
         Fits transformer to documents and returns the transformer object instance.
 
@@ -227,7 +227,7 @@ class GloveEmbeddingTransformer(TransformerMixin, BaseEstimator):
 
     def _pytorch_fit(self, cooccurrences_m, y=None):
         """
-        Fit to data.
+        Fit to resources.
         Fits transformer to cooccurrence matrix and returns the transformer object instance.
 
         Parameters
@@ -305,7 +305,7 @@ class GloveEmbeddingTransformer(TransformerMixin, BaseEstimator):
 
     def transform(self, documents=None):
         """
-        Transform data after transformer has been fitted. Returns a coocurence matrix.
+        Transform resources after transformer has been fitted. Returns a coocurence matrix.
 
         Parameters
         ----------
@@ -378,7 +378,7 @@ def train_glove(
     cooccurrence_matrix = Path(cooccurrence_matrix)
     loader = np.load(cooccurrence_matrix)
     cooccurrences = csr_matrix(
-        (loader['data'], loader['indices'], loader['indptr']), shape=loader['shape'])
+        (loader['resources'], loader['indices'], loader['indptr']), shape=loader['shape'])
 
     # Load CountVectorizer from file
     counter = Path(counter)

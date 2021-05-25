@@ -52,7 +52,7 @@ class Glove(object):
             error = np.zeros(1, dtype=np.float64)
             while True:
                 job = jobs.get()
-                if job is None:  # data finished, exit
+                if job is None:  # resources finished, exit
                     break
                 train_glove(self, job, step_size, error)
                 with lock:

@@ -1,5 +1,5 @@
 """Data processing module.
-This module aims at preparing and shaping the data in order to make it suitable for the subsequent training step.
+This module aims at preparing and shaping the resources in order to make it suitable for the subsequent training step.
 """
 
 import sys
@@ -49,7 +49,7 @@ class CoOccurrenceMatrixTransformer(TransformerMixin, BaseEstimator):
 
     def fit_transform(self, documents, y=None, **fit_params):
         """
-        Fit to data, then transform it.
+        Fit to resources, then transform it.
 
         Fits transformer to documents and y
         and returns a co-occurrence matrix.
@@ -85,7 +85,7 @@ class CoOccurrenceMatrixTransformer(TransformerMixin, BaseEstimator):
 
     def fit(self, documents, y=None, **fit_params):
         """
-        Fit to data.
+        Fit to resources.
 
         Fits transformer to documents and returns the transformer object instance.
 
@@ -127,7 +127,7 @@ class CoOccurrenceMatrixTransformer(TransformerMixin, BaseEstimator):
 
     def transform(self, count_matrix=None):
         """
-        Transform data after transformer has been fitted. Returns a co-occurrence matrix.
+        Transform resources after transformer has been fitted. Returns a co-occurrence matrix.
 
         Parameters
         ----------

@@ -1,24 +1,38 @@
 ---
+
 - step:
-    name: transform
-    image: <<registry/image:tag>>
+    name: load
+    image: glove-mlops-demo:latest
     command:
       - cd src
-      - python main.py clean_text {parameters}
+      - python3 main.py load_data {parameters}
+
+    parameters:
+      - name: output_path
+        description: Path to the datafile to clean
+        type: string
+        default: /valohai-local-outputs
+
+- step:
+    name: transform
+    image: glove-mlops-demo:latest
+    command:
+      - cd src
+      - python3 main.py clean_text {parameters}
     mounts:
-      - source: /data
-        destination: /data
+      - source: /resources
+        destination: /resources
         readonly: false
 
     parameters:
       - name: data_file
         description: Path to the datafile to clean
         type: string
-        default: /data/langdetected_cvs_df.json
+        default: /resources/demo_data_train.json
       - name: output_path
         description: Output path to save the cleaned df
         type: string
-        default: /valohai/outputs/cleansed_cvs_df.json
+        default: /resources/cleansed_data.json.json
       - name: force
         description: Force download of files even if it already exists?
         type: flag
@@ -50,25 +64,22 @@
 
 - step:
     name: cooccurrence
-    image: <<registry/image:tag>>
+    image: glove-mlops-demo:latest
     command:
       - cd src
-      - python main.py build_cooccurrence {parameters}
-    inputs:
-      - name: cleansed_cvs
-        filename: cleansed_cvs_df.json
+      - python3 main.py build_cooccurrence {parameters}
     mounts:
-      - source: /data
-        destination: /data
+      - source: /resources
+        destination: /resources
         readonly: false
     parameters:
       - name: cleansed_cvs
         type: string
-        default: /valohai/inputs/cleansed_cvs/cleansed_cvs_df.json
+        default: /resources/cleansed_data.json
       - name: output_path
-        description: Output path to save the cooccurrence matrix
+        description: Output path to save artifacts (cooccurence_matrix, counter)
         type: string
-        default: /valohai/outputs/cooccurrence_matrix.npz
+        default: /resources
       - name: text_colname
         type: string
         default: text
@@ -88,44 +99,34 @@
 
 - step:
     name: train
-    image: <<registry/image:tag>>
+    image: glove-mlops-demo:latest
     command:
       - cd src
       - python3 main.py train_glove {parameters}
     inputs:
-      - name: cooccurrences
-        filename: cooccurrence_matrix.npz
-      - name: counter
-        filename: counter.pkl
-    mounts:
-      - source: /data
-        destination: /data
-        readonly: false
-    inputs:
       - name: cooccurrence_matrix
-        filename: cooccurrence_matrix.npz
+        filename: /resources/cooccurrence_matrix.npz
+      - name: counter
+        filename: /resources/counter.pkl
+    mounts:
+      - source: /resources
+        destination: /resources
+        readonly: false
 
     parameters:
       - name: cooccurrence_matrix
         type: string
-        default: /valohai/inputs/cooccurrence_matrix/cooccurrence_matrix.npz
+        default: /resources/cooccurrence_matrix.npz
+      - name: counter
+        type: string
+        default: /resources/counter.pkl
       - name: output_path
         description: Output path to save the trained model
         type: string
-        default: /valohai/outputs/glove_embedder.pkl
+        default: /resources/glove_embedder.pkl
       - name: text_colname
         type: string
         default: text
-      - name: language_colname
-        type: string
-        default: main_language
-      - name: lang
-        type: string
-        default: fr
-        optional: True
-      - name: min_df
-        type: integer
-        default: 5
       - name: max_epochs
         type: integer
         default: 5
@@ -137,11 +138,15 @@
         default: 32768
       - name: clip_gradient
         type: flag
-        default: true 
+        default: true
+      - name: implementation
+        type: string
+        description: "Type of implementation to be used; value must be in ('pytorch', 'cython')"
+        default: 'pytorch'
       - name: output_path
         description: Output path to save the trained model
         type: string
-        default: /data/glove_embedder.pkl
+        default: /resources/glove_embedder.pkl
 
 - pipeline:
     name: Training Pipeline
@@ -157,36 +162,36 @@
         step: train
 
     edges:
-      - [transform-node.parameter.output_path, cooccurrence-node.parameter.data_file]
-      - [cooccurrence-node.parameter.output_path, train-node.parameter.data_file]
+      - [ transform-node.output.cleansed_cvs_df*, cooccurrence-node.input.cleansed_cvs ]
+      - [ cooccurrence-node.output.cooccurrence_matrix*, train-node.input.cooccurence_matrix ]
 
 - step:
     name: apply
-    image: <<registry/image:tag>>
+    image: glove-mlops-demo:latest
     command:
       - cd src
-      - python main.py apply {parameters}
+      - python3 main.py apply {parameters}
     mounts:
-      - source: /data
-        destination: /data
+      - source: /resources
+        destination: /resources
         readonly: false
     inputs:
       - name: glove_embedder
-        filename: glove_embedder.pkl
+        filename: /resources/glove_embedder.pkl
 
     parameters:
       - name: glove_embedder
         description: input path of embedder to be applied on eval dataset
         type: string
-        default: /valohai/inputs/glove_embedder/glove_embedder.pkl
+        default: /resources/glove_embedder.pkl
       - name: output_path
         description: outputpath of embedded labeled dataset (json pandas DataFrame)
         type: string
-        default: /valohai/outputs/embedded_cvs_labeled_df.json
+        default: /resources/demo_data_test.json
       - name: labeled_docs_path
         description: path of labeled dataset (json pandas DataFrame)
         type: string
-        default: /data/langdetected_cvs_labeled_df.json
+        default: /resources/embedded_data.json
       - name: language_colname
         type: string
         default: main_language
@@ -197,31 +202,31 @@
 
 - step:
     name: eval
-    image: <<registry/image:tag>>
+    image: glove-mlops-demo:latest
     command:
       - cd src
-      - python main.py evaluate {parameters}
+      - python3 main.py evaluate {parameters}
     mounts:
-      - source: /data
-        destination: /data
+      - source: /resources
+        destination: /resources
         readonly: false
     inputs:
       - name: embedded_cvs_labeled
-        filename: embedded_cvs_labeled_df.json
+        filename: /resources/embedded_data.json
 
     parameters:
       - name: embedded_cvs_labeled
-        description: input path to the embeddings of labeled data
+        description: input path to the embeddings of labeled resources
         type: string
-        default: /valohai/inputs/embedded_cvs_labeled/embedded_cvs_labeled_df.json
+        default: /resources/embedded_data.json
       - name: output_path
         description: Output path to save eval artifacts
         type: string
-        default: /data
+        default: /resources
       - name: labeled_docs_path
-        description: input path to the dataframe for labeled data
+        description: input path to the dataframe for labeled resources
         type: string
-        default: /data/langdetected_cvs_labeled_df.json
+        default: /resources/demo_data_test.json
       - name: language_colname
         type: string
         default: main_language
@@ -273,7 +278,8 @@
         step: eval
 
     edges:
-      - [ transform-node.output.cleansed_cvs_df*, cooccurrence-node.input.cleansed_cvs ]
-      - [ cooccurrence-node.output.cooccurrence_matrix*, train-node.input.cooccurence_matrix ]
+      - [ transform-node.output.cleansed_cvs*, cooccurrence-node.input.cleansed_cvs ]
+      - [ cooccurrence-node.output.cooccurrence_matrix*, train-node.input.cooccurrence_matrix ]
+      - [ cooccurrence-node.output.counter*, train-node.input.counter ]
       - [ train-node.output.glove_embedder*, apply-node.input.glove_embedder ]
       - [ apply-node.output.embedded_cvs_labeled*, eval-node.input.embedded_cvs_labeled ]
