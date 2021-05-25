@@ -97,9 +97,7 @@ class GloVe(nn.Module):
         rows = self.cooccurrences._indices()[0][indices]
         cols = self.cooccurrences._indices()[1][indices]
         coocs = self.cooccurrences._values()[indices]
-        weights = torch.pow(
-            torch.minimum(coocs / self.x_max, torch.as_tensor(1.0)), self.alpha
-        )
+        weights = torch.pow(torch.minimum(coocs / self.x_max, torch.as_tensor(1.)), self.alpha)
         w, w_tilde = self.embedding(rows), self.embedding_tilde(cols)
         b, b_tilde = self.bias(rows), self.bias_tilde(cols)
         out = torch.sum(w * w_tilde, axis=1, keepdims=True) + b + b_tilde
@@ -107,7 +105,7 @@ class GloVe(nn.Module):
         return loss
 
     def embeddings(self):
-        return (self.embedding.weight + self.embedding_tilde).data.cpu().numpy()
+        return self.embedding.weight.data.cpu().numpy()
 
 
 class GloveEmbeddingTransformer(TransformerMixin, BaseEstimator):
@@ -143,6 +141,11 @@ class GloveEmbeddingTransformer(TransformerMixin, BaseEstimator):
         if counter.vocabulary_ is None:
             raise ValueError("counter must be fitted.")
         self.counter = counter
+        print(json.dumps({
+            "min_df": self.counter.min_df,
+            "max_df": self.counter.max_df,
+            "max_features": self.counter.max_features,
+        }))
         self.fit_params = None
         self.embeddings = None
         logger.debug(f"{self.__class__} initialized.")
@@ -169,11 +172,11 @@ class GloveEmbeddingTransformer(TransformerMixin, BaseEstimator):
 
     def fit(self, cooccurrences_m, y=None, **fit_params):
         print(json.dumps(fit_params))
-        impl = fit_params.pop("implementation", "pytorch")
+        impl = fit_params.pop('implementation', 'pytorch')
         self.fit_params = self._validate_fit_params(fit_params=fit_params)
-        if impl == "pytorch":
+        if impl == 'pytorch':
             return self._pytorch_fit(cooccurrences_m, y)
-        elif impl == "cython":
+        elif impl == 'cython':
             return self._cython_fit(cooccurrences_m, y)
         else:
             raise ValueError("Implementation must be one of `pytorch` or `cython`.")
@@ -216,6 +219,7 @@ class GloveEmbeddingTransformer(TransformerMixin, BaseEstimator):
                 workers=self.fit_params.get("workers"),
             )
             logger.debug(f"Error for epoch {epoch}: {err}")
+            print(json.dumps({"implementation": "cython", "epoch": epoch, "total_loss": err}))
 
         logger.info("Embedding done.")
         self.embeddings = model.W.copy()
@@ -244,31 +248,19 @@ class GloveEmbeddingTransformer(TransformerMixin, BaseEstimator):
         logger.info("Compute embeddings...")
 
         logger.debug("Load cooccurrences as tensor to {device}...")
-        cooccurrences_t = torch.sparse_coo_tensor(
-            list(cooccurrences_m.nonzero()),
-            cooccurrences_m.data,
-            cooccurrences_m.shape,
-            device=device,
-        )
+        cooccurrences_t = torch.sparse_coo_tensor(list(cooccurrences_m.nonzero()), cooccurrences_m.data,
+                                                  cooccurrences_m.shape, device=device)
         logger.debug("Finished loading of cooccurrences.")
 
         logger.debug("Initialize model...")
-        model = GloVe(
-            cooccurrences_t,
-            self.fit_params["d"],
-            self.fit_params["x_max"],
-            self.fit_params["alpha"],
-        ).to(device)
-        optimizer = torch.optim.Adagrad(
-            model.parameters(), lr=self.fit_params["step_size"]
-        )
+        model = GloVe(cooccurrences_t, self.fit_params["d"], self.fit_params["x_max"], self.fit_params["alpha"]).to(
+            device)
+        optimizer = torch.optim.Adagrad(model.parameters(), lr=self.fit_params["step_size"])
         logger.debug("Model and optimizer initialized.")
 
         for epoch in tqdm(range(1, self.fit_params.get("max_epochs") + 1)):
             total_loss = 0.0
-            for batch in self.get_next_batch(
-                cooccurrences_m.nnz, self.fit_params["batch_size"]
-            ):
+            for batch in self.get_next_batch(cooccurrences_m.nnz, self.fit_params["batch_size"]):
                 batch = batch.to(device)
                 loss = model(batch)
                 total_loss += loss.item()
@@ -278,17 +270,10 @@ class GloveEmbeddingTransformer(TransformerMixin, BaseEstimator):
                     torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
 
-            print(
-                json.dumps(
-                    {
-                        "implementation": "pytorch",
-                        "epoch": epoch,
-                        "total_loss": total_loss / cooccurrences_m.count_nonzero(),
-                    }
-                )
-            )
+            print(json.dumps({"implementation": "pytorch", "epoch": epoch,
+                              "total_loss": total_loss / cooccurrences_m.count_nonzero()}))
         logger.info("Embedding done.")
-        self.embeddings = model.embeddings() + model.em
+        self.embeddings = model.embeddings()
         return self
 
     def get_next_batch(self, total_els, batch_size):
@@ -308,8 +293,8 @@ class GloveEmbeddingTransformer(TransformerMixin, BaseEstimator):
         if fit_params is not None:
             for key in fit_params:
                 if key not in valid_params.keys():
-                    raise ValueError(
-                        f"Unknown parameter {key}. Valid parameters are: {valid_params.keys()}."
+                    logger.warning(
+                        f"Unknown parameter {key} will be ignored. Valid parameters are: {valid_params.keys()}."
                     )
                 if fit_params[key] is None:
                     raise ValueError(
@@ -346,7 +331,7 @@ class GloveEmbeddingTransformer(TransformerMixin, BaseEstimator):
         counts = self.counter.transform(documents)
 
         normalizer = counts.sum(axis=1)
-        embedded_docs = ((counts * self.embeddings) + 1.0) / (normalizer + 1.0)
+        embedded_docs = ((counts * self.embeddings) + 1.) / (normalizer + 1.)
         return DataFrame(data=embedded_docs, index=doc_index)
 
     def get_fit_params(self):
@@ -357,14 +342,15 @@ class GloveEmbeddingTransformer(TransformerMixin, BaseEstimator):
 
 
 def train_glove(
-    cooccurrence_matrix: Union[str, Path],
-    counter_file: Union[str, Path],
-    output_path: Union[str, Path],
-    text_colname: str = "text",
-    max_epochs: int = 25,
-    nb_dims: int = 100,
-    batch_size: int = 1024,
-    **kwargs,
+        cooccurrence_matrix: Union[str, Path],
+        counter: Union[str, Path],
+        output_path: Union[str, Path],
+        text_colname: str = "text",
+        max_epochs: int = 5,
+        nb_dims: int = 100,
+        batch_size: int = 1024,
+        implementation: str = "pytorch",
+        **kwargs,
 ):
     """GloVe training utility
 
@@ -374,13 +360,14 @@ def train_glove(
     Parameters
     ----------
     cooccurrence_matrix: {str, Path}. Path to a compressed numpy matrix.
-    counter_file: {str, Path}. Path to a CountVectorizer serialized with pickle.
+    counter: {str, Path}. Path to a CountVectorizer serialized with pickle.
     output_path: {str, Path}. Path where to output the pickled embedder.
     text_colname: str.
         Name of the column of the dataframe to be used for transformation. Defaults to `text`.
     max_epochs: int. Number of epochs to train the embeddings. Defaults to 25.
     nb_dims: int. Number of dimensions of the resulting embeddings. Defaults to 100.
     batch_size: int. Size of the batches to train the embedder. Defaults to 1024.
+    implementation: Type of implementation to be used during training: "pytorch" or "cython"
     kwargs : arguments to be passed to the DataCleaner constructor.
 
     Returns
@@ -391,12 +378,11 @@ def train_glove(
     cooccurrence_matrix = Path(cooccurrence_matrix)
     loader = np.load(cooccurrence_matrix)
     cooccurrences = csr_matrix(
-        (loader["data"], loader["indices"], loader["indptr"]), shape=loader["shape"]
-    )
+        (loader['data'], loader['indices'], loader['indptr']), shape=loader['shape'])
 
     # Load CountVectorizer from file
-    counter_file = Path(counter_file)
-    with open(counter_file, "rb") as istream:
+    counter = Path(counter)
+    with open(counter, "rb") as istream:
         counter = pkl.load(istream)
 
     output_path = Path(output_path)
@@ -404,13 +390,10 @@ def train_glove(
     glove_embedder = GloveEmbeddingTransformer(
         counter=counter,
         text_colname=text_colname,
-        max_epochs=max_epochs,
-        d=nb_dims,
-        batch_size=batch_size,
-        **kwargs,
+        max_epochs=max_epochs, d=nb_dims, batch_size=batch_size, **kwargs
     )
 
-    glove_embedder.fit(cooccurrences)
+    glove_embedder.fit(cooccurrences, implementation=implementation)
     with open(output_path, "wb") as ostream:
         pkl.dump(glove_embedder, ostream)
 

@@ -33,7 +33,7 @@ setup(
     ],
     setup_requires=[],
     include_package_data=True,
-    license="MIT",
+    licence="MIT",
     python_requires=">=3.8",
     install_requires=["Cython", "numpy>=1.19", "scipy>=1.6.3"],
     packages=find_packages(),

@@ -22,18 +22,10 @@ class Glove(object):
         self.cooccurence = self._as_csr(cooccurence)
         self.seed = seed
         np.random.seed(seed)
-        self.W = np.random.uniform(-0.5 / d, 0.5 / d, (cooccurence.shape[0], d)).astype(
-            np.float64
-        )
-        self.ContextW = np.random.uniform(
-            -0.5 / d, 0.5 / d, (cooccurence.shape[0], d)
-        ).astype(np.float64)
-        self.b = np.random.uniform(-0.5 / d, 0.5 / d, (cooccurence.shape[0], 1)).astype(
-            np.float64
-        )
-        self.ContextB = np.random.uniform(
-            -0.5 / d, 0.5 / d, (cooccurence.shape[0], 1)
-        ).astype(np.float64)
+        self.W = np.random.uniform(-0.5 / d, 0.5 / d, (cooccurence.shape[0], d)).astype(np.float64)
+        self.ContextW = np.random.uniform(-0.5 / d, 0.5 / d, (cooccurence.shape[0], d)).astype(np.float64)
+        self.b = np.random.uniform(-0.5 / d, 0.5 / d, (cooccurence.shape[0], 1)).astype(np.float64)
+        self.ContextB = np.random.uniform(-0.5 / d, 0.5 / d, (cooccurence.shape[0], 1)).astype(np.float64)
         self.gradsqW = np.ones_like(self.W, dtype=np.float64)
         self.gradsqContextW = np.ones_like(self.ContextW, dtype=np.float64)
         self.gradsqb = np.ones_like(self.b, dtype=np.float64)
@@ -84,9 +76,7 @@ class Glove(object):
 
         # Batch co-occurrence pieces
         # A list with the length of each batch
-        batch_lengths = [batch_size] * (total_els // batch_size) + [
-            total_els % batch_size
-        ]
+        batch_lengths = [batch_size] * (total_els // batch_size) + [total_els % batch_size]
 
         # Construct the slices
         r_indices = np.cumsum(batch_lengths)
@@ -98,12 +88,15 @@ class Glove(object):
 
         # Build batches
         for sl in slices:
-            jobs.put((rows[sl], cols[sl], self.cooccurence[rows[sl], cols[sl]].getA1()))
+            jobs.put(
+                (rows[sl],
+                 cols[sl],
+                 self.cooccurence[rows[sl], cols[sl]].getA1()
+                 )
+            )
 
         for _ in range(workers):
-            jobs.put(
-                None
-            )  # give the workers heads up that they can finish -- no more work!
+            jobs.put(None)  # give the workers heads up that they can finish -- no more work!
 
         for thread in workers_threads:
             thread.join()
