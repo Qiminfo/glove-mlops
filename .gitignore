@@ -28,3 +28,4 @@ bentobox/
 # local resources
 /resources/
 !/resources/.trackme
+/valohai-local-outputs/
